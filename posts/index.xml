@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Posts on Working Title</title>
+    <link>https://ibookstein.github.io/posts/</link>
+    <description>Recent content in Posts on Working Title</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en</language>
+    <copyright>© 2023 — Itay Bookstein — CC BY 4.0</copyright>
+    <lastBuildDate>Fri, 14 Jul 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://ibookstein.github.io/posts/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Toy Arbitrary-Precision Float in Rust</title>
+      <link>https://ibookstein.github.io/posts/2023-07-14-toy-float/</link>
+      <pubDate>Fri, 14 Jul 2023 00:00:00 +0000</pubDate>
+      
+      <guid>https://ibookstein.github.io/posts/2023-07-14-toy-float/</guid>
+      <description>Many words have been written on IEEE754 (binary) floating point numbers. I particularly like the illustrations in Bartosz Ciechanowski&amp;rsquo;s Exposing Floating Point article, and Michael Matloka&amp;rsquo;s interactive visualizations in Floating-point arithmetic – all you need to know, explained interactively.
+Let&amp;rsquo;s get our hands dirty by writing a toy arbitrary-precision floating point implementation in Rust. Having an arbitrary-precision implementation is useful for pedagogical purposes, because a good mental model for IEEE754 floating point computations is to pretend that each computation happens in ideal math land, and is then brought back down to finite precision land as a separate post-processing step.</description>
+    </item>
+    
+  </channel>
+</rss>
