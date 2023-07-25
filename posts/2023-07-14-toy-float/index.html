@@ -472,17 +472,17 @@ exponent to compensate, and vice versa. Therefore, every number $m \cdot 2^{e}$
 has a many different &ldquo;aliases&rdquo;, of the form $(m \cdot 2^{d}) \cdot 2^{e - d}$.</p>
 <p>In the IEEE754 binary interchange formats, this problem is neatly defined out
 of existence by saying that the mantissa always represents a fraction in the
-interval $[1, 2)$. And throw away the top bit, since it&rsquo;s always 1.
-In other words, the single alias with $1 \le m &lt; 2$ is the only one that can be
-encoded. Other aliases would have bits above the implicit bit or require
-the implicit bit itself to be zero.</p>
+interval $[1, 2)$. And throw away the top bit, since it&rsquo;s always 1, while you&rsquo;re
+at it. In other words, the single alias with $1 \le m &lt; 2$ is the only one that
+can be encoded. Other aliases would need to either set bits above the implicit
+bit or unset the implicit bit itself.</p>
 <p>I did lie in the previous paragraph. Just a bit. The mantissa doesn&rsquo;t always
 represent a fraction in the interval $[1, 2)$, due to the existence of subnormals.
 But they&rsquo;re defined in a way that does not break uniqueness of representation,
 and meshes well with gradual underflow towards zero.</p>
 <p>For subnormal numbers (<code>biased_exp == 0, mantissa != 0</code>), IEEE754 essentially
 degrades into a fixed-point representation. The meaning of the number is
-$0.\mathrm{mantissa} \cdot 2^{E_\mathrm{min}}$. the drop from <code>biased_exp == 1</code>
+$0.\mathrm{mantissa} \cdot 2^{E_\mathrm{min}}$. The drop from <code>biased_exp == 1</code>
 to <code>biased_exp == 0</code> does not represent a drop in the numeric value of the
 exponent in the regular way, but rather, we start digging into the mantissa
 and losing precision gradually. Dividing a number with <code>biased_exp == 2</code> by 2
