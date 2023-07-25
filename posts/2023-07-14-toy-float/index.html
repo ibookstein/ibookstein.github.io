@@ -183,34 +183,68 @@
 
     <div class="post-content">
         <p>
-            <p>Many words have been written on IEEE754 (binary) floating point numbers. I
-particularly like the illustrations in Bartosz Ciechanowski&rsquo;s
-<a href="https://ciechanow.ski/exposing-floating-point/">Exposing Floating Point</a>
-article, and Michael Matloka&rsquo;s interactive visualizations in
-<a href="https://matloka.com/blog/floating-point-101">Floating-point arithmetic – all you need to know, explained interactively</a>.</p>
-<p>Let&rsquo;s get our hands dirty by writing a toy arbitrary-precision floating point
-implementation in Rust. Having an arbitrary-precision implementation is useful
-for pedagogical purposes, because a good mental model for IEEE754 floating point
-computations is to pretend that each computation happens in ideal math land, and
-is then brought back down to finite precision land as a separate post-processing
-step.</p>
-<p>We&rsquo;ll start with designing a data structure to hold an arbitrary-precision
-floating point value. We&rsquo;ll be using types from the
-<a href="https://docs.rs/num-bigint/latest/num_bigint/"><code>num-bigint</code></a> crate as building
-blocks to help us do arbitrary-precision integer arithmetic, which will be
-necessary for the mantissa. Using a fixed-width integer type for the exponent
-will be sufficient, because changes to it make the number grow, well, exponentially.</p>
-<p>Floating point values subdivide into four distinct categories: regulars, zeros,
-infinities, and NaNs. The first three are signed. For zeros that may be a bit
-surprising, but it&rsquo;s important to distinguish between negative zero and positive
-zero for some numeric operations. No behavior is ascribed to the sign bit of NaNs.</p>
-<p>The <code>num_bigint::BigInt</code> type already has a sign field. Its sign is actually
-an enum with three states: <code>pub enum Sign { Minus, NoSign, Plus }</code>. It may
-appear that <code>NoSign</code> is less useful for us as it may create some representational
-redundancies and fly in the face of the principle of &ldquo;making invalid states
-unrepresentable&rdquo;, but we&rsquo;ll actually find it useful later on.</p>
-<p>What we will do, however, is only grant exponents to regular floats, by hiding
-it away inside the <code>Regular</code> enum variant.</p>
+            <p>In this post, we&rsquo;re going to get our hands dirty writing a toy arbitrary-precision
+floating point implementation in Rust. I&rsquo;m therefore going to assume basic
+knowledge of IEEE754 (binary) floating point numbers. If you feel unprepared,
+I can recommend the following articles, which contain excellent visualizations:</p>
+<ul>
+<li>Bartosz Ciechanowski&rsquo;s <a href="https://ciechanow.ski/exposing-floating-point/">Exposing Floating Point</a>.</li>
+<li>Michael Matloka&rsquo;s <a href="https://matloka.com/blog/floating-point-101">Floating-point arithmetic – all you need to know, explained interactively</a>.</li>
+</ul>
+<p>Having an arbitrary-precision implementation is useful for pedagogical purposes,
+because a good mental model for IEEE754 floating point computations is to pretend
+that each computation happens in ideal math land, and is then brought back down
+to finite precision land as a separate post-processing step. Everything beyond
+that is &ldquo;just&rdquo; optimizations.</p>
+<p>Let&rsquo;s ignore the special values for now, and focus on the values everyone
+imagines when they think about floating-point values. Well, we basically just
+want a mantissa, an exponent, and a sign, right?</p>
+<div class="highlight"><pre tabindex="0" style="color:#d8dee9;background-color:#2e3440;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Rust" data-lang="Rust"><span style="display:flex;"><span><span style="color:#81a1c1;font-weight:bold">struct</span> <span style="color:#8fbcbb">ArbFloat</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>    sign: <span style="color:#81a1c1">bool</span><span style="color:#eceff4">,</span>
+</span></span><span style="display:flex;"><span>    exponent: <span style="color:#81a1c1">i32</span><span style="color:#eceff4">,</span>
+</span></span><span style="display:flex;"><span>    mantissa: <span style="color:#81a1c1">u32</span><span style="color:#eceff4">,</span>
+</span></span><span style="display:flex;"><span><span style="color:#eceff4">}</span>
+</span></span></code></pre></div><p>Is this it? Well, we have 32 bits of precision here, the number of bits we
+granted the <code>mantissa</code> field. A bit of a far cary from arbitrary-precision,
+if you ask me. It&rsquo;s sufficient to hold single-precision values, which require
+24 bits of precision. But it will struggle to hold double-precision values,
+which require 53 bits of precision. And it will definitely struggle to hold
+the results of arithmetic between two such floats.</p>
+<p>Introducing <a href="https://docs.rs/num-bigint/latest/num_bigint/"><code>num-bigint</code></a>.
+This crate has types for arbitrary-precision integers, so we can use them
+to hold our mantissa:</p>
+<div class="highlight"><pre tabindex="0" style="color:#d8dee9;background-color:#2e3440;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Rust" data-lang="Rust"><span style="display:flex;"><span><span style="color:#81a1c1;font-weight:bold">struct</span> <span style="color:#8fbcbb">ArbFloat</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>    sign: <span style="color:#81a1c1">bool</span><span style="color:#eceff4">,</span>
+</span></span><span style="display:flex;"><span>    exponent: <span style="color:#81a1c1">i32</span><span style="color:#eceff4">,</span>
+</span></span><span style="display:flex;"><span>    mantissa: <span style="color:#8fbcbb">BigUint</span><span style="color:#eceff4">,</span>
+</span></span><span style="display:flex;"><span><span style="color:#eceff4">}</span>
+</span></span></code></pre></div><p>But wait, shouldn&rsquo;t we also make the <code>exponent</code> field a <code>BigUint</code>? The exponent
+field describes, well, exponential growth of our floating-point number. A value
+of 10000 in the exponent field means that the number has the value
+$\mathrm{mantissa} \cdot 2^{10000}$. That&rsquo;s plenty, so <code>i32</code> will suffice.</p>
+<p>Also, rather than having separate <code>sign</code> and <code>BigUint</code> fields, we can use
+the <code>BigInt</code> type, which already has a sign. This will let us avoid dealing
+with sign management code, and we won&rsquo;t need to carefully avoid underflows
+when subtracting <code>BigUint</code>-s:</p>
+<div class="highlight"><pre tabindex="0" style="color:#d8dee9;background-color:#2e3440;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Rust" data-lang="Rust"><span style="display:flex;"><span><span style="color:#81a1c1;font-weight:bold">struct</span> <span style="color:#8fbcbb">ArbFloat</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>    exponent: <span style="color:#81a1c1">i32</span><span style="color:#eceff4">,</span>
+</span></span><span style="display:flex;"><span>    number: <span style="color:#8fbcbb">BigInt</span><span style="color:#eceff4">,</span>
+</span></span><span style="display:flex;"><span><span style="color:#eceff4">}</span>
+</span></span></code></pre></div><p>Now, let&rsquo;s handle the three special value categories we neglected earlier: zeros,
+infinities, and NaNs. The former two have a meaningful sign, but no behavior is
+ascribed to the sign bit of NaNs. Signed zeros, and the sign has meaningful
+behavior, wild!</p>
+<div class="highlight"><pre tabindex="0" style="color:#d8dee9;background-color:#2e3440;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Rust" data-lang="Rust"><span style="display:flex;"><span><span style="color:#81a1c1;font-weight:bold">enum</span> <span style="color:#8fbcbb">ArbFloat</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>    Regular <span style="color:#eceff4">{</span> exponent: <span style="color:#81a1c1">i32</span><span style="color:#eceff4">,</span> number: <span style="color:#8fbcbb">BigInt</span> <span style="color:#eceff4">},</span>
+</span></span><span style="display:flex;"><span>    Zero <span style="color:#eceff4">{</span> sign: <span style="color:#81a1c1">bool</span> <span style="color:#eceff4">},</span>
+</span></span><span style="display:flex;"><span>    Infinity <span style="color:#eceff4">{</span> sign: <span style="color:#81a1c1">bool</span> <span style="color:#eceff4">},</span>
+</span></span><span style="display:flex;"><span>    NaN<span style="color:#eceff4">,</span>
+</span></span><span style="display:flex;"><span><span style="color:#eceff4">}</span>
+</span></span></code></pre></div><p>It&rsquo;s kind of annoying that we&rsquo;ll have to handle the sign&rsquo;s behavior
+non-uniformly across these variants. We can instead hoist the <code>number</code> field
+out of <code>Regular</code>, and make the sign state of the other variants ride on it.
+We&rsquo;ll also be giving NaNs a sign, but it doesn&rsquo;t matter. We&rsquo;ll also use this
+opportunity to slightly shorten the names of the fields.</p>
 <div class="highlight"><pre tabindex="0" style="color:#d8dee9;background-color:#2e3440;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Rust" data-lang="Rust"><span style="display:flex;"><span><span style="color:#5e81ac;font-style:italic">#[derive(Debug, Copy, Clone)]</span>
 </span></span><span style="display:flex;"><span><span style="color:#81a1c1;font-weight:bold">enum</span> <span style="color:#8fbcbb">FloatKind</span> <span style="color:#eceff4">{</span>
 </span></span><span style="display:flex;"><span>    Regular <span style="color:#eceff4">{</span> exp: <span style="color:#81a1c1">i32</span> <span style="color:#eceff4">},</span>
@@ -230,15 +264,25 @@ it away inside the <code>Regular</code> enum variant.</p>
 </span></span><span style="display:flex;"><span>        Self <span style="color:#eceff4">{</span> kind<span style="color:#eceff4">,</span> num <span style="color:#eceff4">}</span>
 </span></span><span style="display:flex;"><span>    <span style="color:#eceff4">}</span>
 </span></span><span style="display:flex;"><span><span style="color:#eceff4">}</span>
-</span></span></code></pre></div><p>Let&rsquo;s write a routine for ingesting a floating-point number in a prescribed
-format. There are many IEEE754-like storage formats, and they&rsquo;re defined by
-how many bits each bitfield has (mantissa and exponent). We&rsquo;ll start by
-having a struct that represents a particular float storage format, and some
-convenience methods which will allow us to write code that is parametric over
-that format. For simplicity&rsquo;s sake, we&rsquo;ll only support storage formats up to
-64 bits in size. This fits formats like <code>binary16</code> (half-precision),
-<code>bfloat16</code> (&ldquo;brain floating point&rdquo;), <code>binary32</code> (single-precision),
-and <code>binary64</code> (double-precision).</p>
+</span></span></code></pre></div><p>There&rsquo;s a hidden invariant here we haven&rsquo;t mentioned yet, which must be
+maintained for this data structure. The sign maintained by the <code>BigInt</code> type
+is of the following type: <code>pub enum Sign { Minus, NoSign, Plus }</code>. But we
+already have a <code>Zero</code> variant, and we need to maintain a sign state for it.
+So basically <code>num</code> should always be nonzero. For <code>Zero</code>, <code>Infinity</code>, and <code>NaN</code>,
+we&rsquo;ll restrict ourselves even further and say that it should always be equal
+to $\pm 1$.</p>
+<p>Alright, say we have a floating point value in one of the many IEEE754 or
+IEEE754-like binary interchange formats. How do we ingest such a value into
+our data structure?</p>
+<p>We don&rsquo;t want to write a separate parsing routine for each such format, that
+would be quite duplicative and bug-prone. So we want a parametric description
+of an IEEE754-like format. Basically, all we need to know is how many bits
+are in the mantissa field, and how many bits are in the exponent field (the
+sign field always has one bit).</p>
+<p>For simplicity&rsquo;s sake, we&rsquo;ll only support interchange formats up to 64 bits in
+size. This fits formats like <code>binary16</code> (half-precision),
+<code>bfloat16</code> (&ldquo;brain floating point&rdquo;), <code>binary32</code> (single-precision), and
+<code>binary64</code> (double-precision).</p>
 <div class="highlight"><pre tabindex="0" style="color:#d8dee9;background-color:#2e3440;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Rust" data-lang="Rust"><span style="display:flex;"><span><span style="color:#81a1c1;font-weight:bold">type</span> <span style="color:#8fbcbb">IntStorage</span> <span style="color:#81a1c1">=</span> <span style="color:#81a1c1">u64</span><span style="color:#eceff4">;</span>
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span><span style="color:#5e81ac;font-style:italic">#[derive(Debug, Copy, Clone)]</span>
@@ -256,11 +300,14 @@ and <code>binary64</code> (double-precision).</p>
 </span></span><span style="display:flex;"><span>        frac_bits: <span style="color:#b48ead">52</span><span style="color:#eceff4">,</span>
 </span></span><span style="display:flex;"><span>        exp_bits: <span style="color:#b48ead">11</span><span style="color:#eceff4">,</span>
 </span></span><span style="display:flex;"><span>    <span style="color:#eceff4">};</span>
+</span></span><span style="display:flex;"><span><span style="color:#eceff4">}</span>
 </span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#81a1c1;font-weight:bold">fn</span> <span style="color:#88c0d0">precision</span><span style="color:#eceff4">(</span><span style="color:#81a1c1">&amp;</span>self<span style="color:#eceff4">)</span> -&gt; <span style="color:#81a1c1">i32</span> <span style="color:#eceff4">{</span>
-</span></span><span style="display:flex;"><span>        self<span style="color:#eceff4">.</span>frac_bits <span style="color:#81a1c1;font-weight:bold">as</span> <span style="color:#81a1c1">i32</span> <span style="color:#81a1c1">+</span> <span style="color:#b48ead">1</span>
-</span></span><span style="display:flex;"><span>    <span style="color:#eceff4">}</span>
-</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#81a1c1;font-weight:bold">fn</span> <span style="color:#88c0d0">parse</span><span style="color:#eceff4">(</span>desc: <span style="color:#8fbcbb">FormatDesc</span><span style="color:#eceff4">,</span> storage: <span style="color:#8fbcbb">IntStorage</span><span style="color:#eceff4">)</span> -&gt; <span style="color:#8fbcbb">ArbFloat</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>    todo!<span style="color:#eceff4">()</span>
+</span></span><span style="display:flex;"><span><span style="color:#eceff4">}</span>
+</span></span></code></pre></div><p>Let&rsquo;s add some convenience methods on <code>FormatDesc</code> so that we&rsquo;ll be able
+to extract the three different fields of the storage format.</p>
+<div class="highlight"><pre tabindex="0" style="color:#d8dee9;background-color:#2e3440;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Rust" data-lang="Rust"><span style="display:flex;"><span><span style="color:#81a1c1;font-weight:bold">impl</span> FormatDesc <span style="color:#eceff4">{</span>
 </span></span><span style="display:flex;"><span>    <span style="color:#81a1c1;font-weight:bold">fn</span> <span style="color:#88c0d0">mask</span><span style="color:#eceff4">(</span>bits: <span style="color:#81a1c1">u32</span><span style="color:#eceff4">)</span> -&gt; <span style="color:#8fbcbb">IntStorage</span> <span style="color:#eceff4">{</span>
 </span></span><span style="display:flex;"><span>        IntStorage::<span style="color:#8fbcbb">MAX</span> <span style="color:#81a1c1">&gt;&gt;</span> <span style="color:#eceff4">(</span>IntStorage::<span style="color:#8fbcbb">BITS</span> <span style="color:#81a1c1">-</span> bits<span style="color:#eceff4">)</span>
 </span></span><span style="display:flex;"><span>    <span style="color:#eceff4">}</span>
@@ -281,10 +328,6 @@ and <code>binary64</code> (double-precision).</p>
 </span></span><span style="display:flex;"><span>        self<span style="color:#eceff4">.</span>frac_shift<span style="color:#eceff4">()</span> <span style="color:#81a1c1">+</span> self<span style="color:#eceff4">.</span>frac_bits <span style="color:#81a1c1;font-weight:bold">as</span> IntStorage
 </span></span><span style="display:flex;"><span>    <span style="color:#eceff4">}</span>
 </span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#81a1c1;font-weight:bold">fn</span> <span style="color:#88c0d0">exp_bias</span><span style="color:#eceff4">(</span><span style="color:#81a1c1">&amp;</span>self<span style="color:#eceff4">)</span> -&gt; <span style="color:#81a1c1">i32</span> <span style="color:#eceff4">{</span>
-</span></span><span style="display:flex;"><span>        <span style="color:#eceff4">(</span><span style="color:#b48ead">1</span> <span style="color:#81a1c1">&lt;&lt;</span> <span style="color:#eceff4">(</span>self<span style="color:#eceff4">.</span>exp_bits <span style="color:#81a1c1">-</span> <span style="color:#b48ead">1</span><span style="color:#eceff4">))</span> <span style="color:#81a1c1">-</span> <span style="color:#b48ead">1</span>
-</span></span><span style="display:flex;"><span>    <span style="color:#eceff4">}</span>
-</span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span>    <span style="color:#81a1c1;font-weight:bold">fn</span> <span style="color:#88c0d0">sign_mask</span><span style="color:#eceff4">(</span><span style="color:#81a1c1">&amp;</span>self<span style="color:#eceff4">)</span> -&gt; <span style="color:#8fbcbb">IntStorage</span> <span style="color:#eceff4">{</span>
 </span></span><span style="display:flex;"><span>        <span style="color:#b48ead">1</span>
 </span></span><span style="display:flex;"><span>    <span style="color:#eceff4">}</span>
@@ -292,12 +335,63 @@ and <code>binary64</code> (double-precision).</p>
 </span></span><span style="display:flex;"><span>    <span style="color:#81a1c1;font-weight:bold">fn</span> <span style="color:#88c0d0">sign_shift</span><span style="color:#eceff4">(</span><span style="color:#81a1c1">&amp;</span>self<span style="color:#eceff4">)</span> -&gt; <span style="color:#8fbcbb">IntStorage</span> <span style="color:#eceff4">{</span>
 </span></span><span style="display:flex;"><span>        self<span style="color:#eceff4">.</span>biased_exp_shift<span style="color:#eceff4">()</span> <span style="color:#81a1c1">+</span> self<span style="color:#eceff4">.</span>exp_bits <span style="color:#81a1c1;font-weight:bold">as</span> IntStorage
 </span></span><span style="display:flex;"><span>    <span style="color:#eceff4">}</span>
+</span></span><span style="display:flex;"><span><span style="color:#eceff4">}</span>
+</span></span></code></pre></div><p>Great. Now let&rsquo;s start parsing.</p>
+<div class="highlight"><pre tabindex="0" style="color:#d8dee9;background-color:#2e3440;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Rust" data-lang="Rust"><span style="display:flex;"><span><span style="color:#81a1c1;font-weight:bold">fn</span> <span style="color:#88c0d0">parse</span><span style="color:#eceff4">(</span>desc: <span style="color:#8fbcbb">FormatDesc</span><span style="color:#eceff4">,</span> storage: <span style="color:#8fbcbb">IntStorage</span><span style="color:#eceff4">)</span> -&gt; <span style="color:#8fbcbb">ArbFloat</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#81a1c1;font-weight:bold">let</span> frac <span style="color:#81a1c1">=</span> <span style="color:#eceff4">(</span>storage <span style="color:#81a1c1">&gt;&gt;</span> desc<span style="color:#eceff4">.</span>frac_shift<span style="color:#eceff4">())</span> <span style="color:#81a1c1">&amp;</span> desc<span style="color:#eceff4">.</span>frac_mask<span style="color:#eceff4">();</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#81a1c1;font-weight:bold">let</span> biased_exp <span style="color:#81a1c1">=</span> <span style="color:#eceff4">(</span>storage <span style="color:#81a1c1">&gt;&gt;</span> desc<span style="color:#eceff4">.</span>biased_exp_shift<span style="color:#eceff4">())</span> <span style="color:#81a1c1">&amp;</span> desc<span style="color:#eceff4">.</span>biased_exp_mask<span style="color:#eceff4">();</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#81a1c1;font-weight:bold">let</span> sign <span style="color:#81a1c1">=</span> <span style="color:#eceff4">((</span>storage <span style="color:#81a1c1">&gt;&gt;</span> desc<span style="color:#eceff4">.</span>sign_shift<span style="color:#eceff4">())</span> <span style="color:#81a1c1">&amp;</span> desc<span style="color:#eceff4">.</span>sign_mask<span style="color:#eceff4">())</span> <span style="color:#81a1c1">!=</span> <span style="color:#b48ead">0</span><span style="color:#eceff4">;</span>
 </span></span><span style="display:flex;"><span>
-</span></span><span style="display:flex;"><span>    <span style="color:#81a1c1;font-weight:bold">fn</span> <span style="color:#88c0d0">integer_bit</span><span style="color:#eceff4">(</span><span style="color:#81a1c1">&amp;</span>self<span style="color:#eceff4">)</span> -&gt; <span style="color:#8fbcbb">IntStorage</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>    ArbFloat::new<span style="color:#eceff4">(</span>todo!<span style="color:#eceff4">(),</span> todo!<span style="color:#eceff4">())</span>
+</span></span><span style="display:flex;"><span><span style="color:#eceff4">}</span>
+</span></span></code></pre></div><p>Now that we have the raw fields, how do we reason about them to create an <code>ArbFloat</code>?
+Let&rsquo;s start with computing the <code>FloatKind</code>. We know that when the <code>biased_exp</code>
+field is all-ones, then we&rsquo;re dealing either with a <code>NaN</code> (when <code>frac != 0</code>)
+or with an <code>Infinity</code> (when <code>frac == 0</code>). We also know that when the <code>biased_exp</code>
+field is all-zeros, then we&rsquo;re dealing either with a subnormal number (when <code>frac != 0</code>)
+or with a zero (when <code>frac == 0</code>). Let&rsquo;s sketch that out:</p>
+<div class="highlight"><pre tabindex="0" style="color:#d8dee9;background-color:#2e3440;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Rust" data-lang="Rust"><span style="display:flex;"><span><span style="color:#81a1c1;font-weight:bold">fn</span> <span style="color:#88c0d0">parse</span><span style="color:#eceff4">(</span>desc: <span style="color:#8fbcbb">FormatDesc</span><span style="color:#eceff4">,</span> storage: <span style="color:#8fbcbb">IntStorage</span><span style="color:#eceff4">)</span> -&gt; <span style="color:#8fbcbb">ArbFloat</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#81a1c1;font-weight:bold">let</span> frac <span style="color:#81a1c1">=</span> <span style="color:#eceff4">(</span>storage <span style="color:#81a1c1">&gt;&gt;</span> desc<span style="color:#eceff4">.</span>frac_shift<span style="color:#eceff4">())</span> <span style="color:#81a1c1">&amp;</span> desc<span style="color:#eceff4">.</span>frac_mask<span style="color:#eceff4">();</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#81a1c1;font-weight:bold">let</span> biased_exp <span style="color:#81a1c1">=</span> <span style="color:#eceff4">(</span>storage <span style="color:#81a1c1">&gt;&gt;</span> desc<span style="color:#eceff4">.</span>biased_exp_shift<span style="color:#eceff4">())</span> <span style="color:#81a1c1">&amp;</span> desc<span style="color:#eceff4">.</span>biased_exp_mask<span style="color:#eceff4">();</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#81a1c1;font-weight:bold">let</span> sign <span style="color:#81a1c1">=</span> <span style="color:#eceff4">((</span>storage <span style="color:#81a1c1">&gt;&gt;</span> desc<span style="color:#eceff4">.</span>sign_shift<span style="color:#eceff4">())</span> <span style="color:#81a1c1">&amp;</span> desc<span style="color:#eceff4">.</span>sign_mask<span style="color:#eceff4">())</span> <span style="color:#81a1c1">!=</span> <span style="color:#b48ead">0</span><span style="color:#eceff4">;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#81a1c1;font-weight:bold">let</span> kind <span style="color:#81a1c1">=</span> <span style="color:#81a1c1;font-weight:bold">if</span> biased_exp <span style="color:#81a1c1">==</span> desc<span style="color:#eceff4">.</span>biased_exp_mask<span style="color:#eceff4">()</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#81a1c1;font-weight:bold">if</span> frac <span style="color:#81a1c1">==</span> <span style="color:#b48ead">0</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>            FloatKind::Infinity
+</span></span><span style="display:flex;"><span>        <span style="color:#eceff4">}</span> <span style="color:#81a1c1;font-weight:bold">else</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>            FloatKind::NaN
+</span></span><span style="display:flex;"><span>        <span style="color:#eceff4">}</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#eceff4">}</span> <span style="color:#81a1c1;font-weight:bold">else</span> <span style="color:#81a1c1;font-weight:bold">if</span> biased_exp <span style="color:#81a1c1">==</span> <span style="color:#b48ead">0</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#81a1c1;font-weight:bold">if</span> frac <span style="color:#81a1c1">==</span> <span style="color:#b48ead">0</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>            FloatKind::Zero
+</span></span><span style="display:flex;"><span>        <span style="color:#eceff4">}</span> <span style="color:#81a1c1;font-weight:bold">else</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#616e87;font-style:italic">// Subnormals.
+</span></span></span><span style="display:flex;"><span><span style="color:#616e87;font-style:italic"></span>            FloatKind::Regular <span style="color:#eceff4">{</span> exp: <span style="color:#8fbcbb">todo</span><span style="color:#81a1c1">!</span><span style="color:#eceff4">()</span> <span style="color:#eceff4">}</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#eceff4">}</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#eceff4">}</span> <span style="color:#81a1c1;font-weight:bold">else</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>        FloatKind::Regular <span style="color:#eceff4">{</span> exp: <span style="color:#8fbcbb">todo</span><span style="color:#81a1c1">!</span><span style="color:#eceff4">()</span> <span style="color:#eceff4">}</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#eceff4">};</span>
+</span></span><span style="display:flex;"><span>    ArbFloat::new<span style="color:#eceff4">(</span>kind<span style="color:#eceff4">,</span> todo!<span style="color:#eceff4">())</span>
+</span></span><span style="display:flex;"><span><span style="color:#eceff4">}</span>
+</span></span></code></pre></div><p>Almost there. We&rsquo;re only missing an assignment for <code>exp</code> and <code>num</code>. We&rsquo;ll need
+to introduce a couple of helper methods on the <code>FormatDesc</code> structure:</p>
+<div class="highlight"><pre tabindex="0" style="color:#d8dee9;background-color:#2e3440;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Rust" data-lang="Rust"><span style="display:flex;"><span><span style="color:#81a1c1;font-weight:bold">impl</span> FormatDesc <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#81a1c1;font-weight:bold">fn</span> <span style="color:#88c0d0">precision</span><span style="color:#eceff4">(</span><span style="color:#81a1c1">&amp;</span>self<span style="color:#eceff4">)</span> -&gt; <span style="color:#81a1c1">i32</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>        self<span style="color:#eceff4">.</span>frac_bits <span style="color:#81a1c1;font-weight:bold">as</span> <span style="color:#81a1c1">i32</span> <span style="color:#81a1c1">+</span> <span style="color:#b48ead">1</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#eceff4">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#616e87;font-style:italic">// Move the unsigned (biased) exponent in the [1, 2^bits - 2] range to
+</span></span></span><span style="display:flex;"><span><span style="color:#616e87;font-style:italic"></span>    <span style="color:#616e87;font-style:italic">// the signed [-2^{bits - 1} + 2, 2^{bits - 1} - 1] range.
+</span></span></span><span style="display:flex;"><span><span style="color:#616e87;font-style:italic"></span>    <span style="color:#81a1c1;font-weight:bold">fn</span> <span style="color:#88c0d0">exp_bias</span><span style="color:#eceff4">(</span><span style="color:#81a1c1">&amp;</span>self<span style="color:#eceff4">)</span> -&gt; <span style="color:#81a1c1">i32</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#eceff4">(</span><span style="color:#b48ead">1</span> <span style="color:#81a1c1">&lt;&lt;</span> <span style="color:#eceff4">(</span>self<span style="color:#eceff4">.</span>exp_bits <span style="color:#81a1c1">-</span> <span style="color:#b48ead">1</span><span style="color:#eceff4">))</span> <span style="color:#81a1c1">-</span> <span style="color:#b48ead">1</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#eceff4">}</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#616e87;font-style:italic">// The hidden bit -- the implicit bit to the left of the radix point.
+</span></span></span><span style="display:flex;"><span><span style="color:#616e87;font-style:italic"></span>    <span style="color:#81a1c1;font-weight:bold">fn</span> <span style="color:#88c0d0">integer_bit</span><span style="color:#eceff4">(</span><span style="color:#81a1c1">&amp;</span>self<span style="color:#eceff4">)</span> -&gt; <span style="color:#8fbcbb">IntStorage</span> <span style="color:#eceff4">{</span>
 </span></span><span style="display:flex;"><span>        <span style="color:#b48ead">1</span> <span style="color:#81a1c1">&lt;&lt;</span> self<span style="color:#eceff4">.</span>frac_bits
 </span></span><span style="display:flex;"><span>    <span style="color:#eceff4">}</span>
 </span></span><span style="display:flex;"><span><span style="color:#eceff4">}</span>
-</span></span></code></pre></div><p>Great. Now let&rsquo;s get parsing.</p>
+</span></span></code></pre></div><p>And now we can put everything together:</p>
 <div class="highlight"><pre tabindex="0" style="color:#d8dee9;background-color:#2e3440;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Rust" data-lang="Rust"><span style="display:flex;"><span><span style="color:#81a1c1;font-weight:bold">fn</span> <span style="color:#88c0d0">parse</span><span style="color:#eceff4">(</span>desc: <span style="color:#8fbcbb">FormatDesc</span><span style="color:#eceff4">,</span> storage: <span style="color:#8fbcbb">IntStorage</span><span style="color:#eceff4">)</span> -&gt; <span style="color:#8fbcbb">ArbFloat</span> <span style="color:#eceff4">{</span>
 </span></span><span style="display:flex;"><span>    <span style="color:#81a1c1;font-weight:bold">let</span> frac <span style="color:#81a1c1">=</span> <span style="color:#eceff4">(</span>storage <span style="color:#81a1c1">&gt;&gt;</span> desc<span style="color:#eceff4">.</span>frac_shift<span style="color:#eceff4">())</span> <span style="color:#81a1c1">&amp;</span> desc<span style="color:#eceff4">.</span>frac_mask<span style="color:#eceff4">();</span>
 </span></span><span style="display:flex;"><span>    <span style="color:#81a1c1;font-weight:bold">let</span> biased_exp <span style="color:#81a1c1">=</span> <span style="color:#eceff4">(</span>storage <span style="color:#81a1c1">&gt;&gt;</span> desc<span style="color:#eceff4">.</span>biased_exp_shift<span style="color:#eceff4">())</span> <span style="color:#81a1c1">&amp;</span> desc<span style="color:#eceff4">.</span>biased_exp_mask<span style="color:#eceff4">();</span>
@@ -320,7 +414,7 @@ and <code>binary64</code> (double-precision).</p>
 </span></span><span style="display:flex;"><span>        <span style="color:#81a1c1;font-weight:bold">if</span> frac <span style="color:#81a1c1">==</span> <span style="color:#b48ead">0</span> <span style="color:#eceff4">{</span>
 </span></span><span style="display:flex;"><span>            FloatKind::Zero
 </span></span><span style="display:flex;"><span>        <span style="color:#eceff4">}</span> <span style="color:#81a1c1;font-weight:bold">else</span> <span style="color:#eceff4">{</span>
-</span></span><span style="display:flex;"><span>            <span style="color:#616e87;font-style:italic">// Subnormals. Multiply by `frac` here only to preserve the sign of zeros.
+</span></span><span style="display:flex;"><span>            <span style="color:#616e87;font-style:italic">// Subnormals.
 </span></span></span><span style="display:flex;"><span><span style="color:#616e87;font-style:italic"></span>            num <span style="color:#81a1c1">*=</span> frac<span style="color:#eceff4">;</span>
 </span></span><span style="display:flex;"><span>            FloatKind::Regular <span style="color:#eceff4">{</span> exp: <span style="color:#8fbcbb">exp</span> <span style="color:#81a1c1">+</span> <span style="color:#b48ead">1</span> <span style="color:#eceff4">}</span>
 </span></span><span style="display:flex;"><span>        <span style="color:#eceff4">}</span>
@@ -348,30 +442,49 @@ ArbFloat { kind: Regular { exp: -52 }, num: 4503599627370496 }
 </code></pre><p>This is almost right, but we&rsquo;re now faced with an inconvenient reality of
 floating-point numbers: uniqueness of representation is not a given, it must be
 earned! In particular, we see here two different representations for the number 1.</p>
-<p>In the IEEE754 storage formats, this situation is neatly defined away by saying
-that the mantissa always represents a number between <code>[1, 2)</code>, and not explicitly
-storing the integer bit &ndash; the single digit above the radix point, which is always 1.
-In other words, they are always <em>normalized</em>. Well, excepting <em>subnormals</em>. They
-are not normalized, because to normalize them, we need to pull their highest set
-mantissa bit up to the integer bit&rsquo;s position, which would mean subtracting up
-to <code>precision - 1</code> from the exponent, which would then underflow (since it&rsquo;s
-already as small as it can get).</p>
-<p>So what do we do? Well, we could just &ldquo;right-justify&rdquo; the <code>BigInt</code> to the best
-degree we can. We do depart from the usual perspective of putting our anchor
-&ldquo;to the left&rdquo; of the number. We&rsquo;re just shifting the complexity around to the
-rounding step, but we&rsquo;ll be fine.</p>
-<div class="highlight"><pre tabindex="0" style="color:#d8dee9;background-color:#2e3440;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-diff" data-lang="diff"><span style="display:flex;"><span>impl ArbFloat {
-</span></span><span style="display:flex;"><span><span style="color:#bf616a">-    fn new(kind: FloatKind, num: BigInt) -&gt; Self {
-</span></span></span><span style="display:flex;"><span><span style="color:#bf616a">-        Self { kind, num }
-</span></span></span><span style="display:flex;"><span><span style="color:#bf616a"></span><span style="color:#a3be8c">+    fn new(mut kind: FloatKind, mut num: BigInt) -&gt; Self {
-</span></span></span><span style="display:flex;"><span><span style="color:#a3be8c">+        if let FloatKind::Regular { exp } = &amp;mut kind {
-</span></span></span><span style="display:flex;"><span><span style="color:#a3be8c">+            let adjustment = num.trailing_zeros().unwrap() as i32;
-</span></span></span><span style="display:flex;"><span><span style="color:#a3be8c">+            *exp += adjustment;
-</span></span></span><span style="display:flex;"><span><span style="color:#a3be8c">+            num &gt;&gt;= adjustment;
-</span></span></span><span style="display:flex;"><span><span style="color:#a3be8c">+        }
-</span></span></span><span style="display:flex;"><span><span style="color:#a3be8c">+        Self { kind, num }
-</span></span></span><span style="display:flex;"><span><span style="color:#a3be8c"></span>    }
-</span></span><span style="display:flex;"><span>}
+<p>This stems from the fact that we can &ldquo;trade&rdquo; between the mantissa and the
+exponent by multiplying the mantissa by 2 and then subtracting 1 from the
+exponent to compensate, and vice versa. Therefore, every number $m \cdot 2^{e}$
+has a many different &ldquo;aliases&rdquo;, of the form $(m \cdot 2^{d}) \cdot 2^{e - d}$.</p>
+<p>In the IEEE754 binary interchange formats, this problem is neatly defined out
+of existence by saying that the mantissa always represents a fraction in the
+interval $[1, 2)$. And throw away the top bit, since it&rsquo;s always 1.
+In other words, the single alias with $1 \le m &lt; 2$ is the only one that can be
+encoded. Other aliases would have bits above the implicit bit or require
+the implicit bit itself to be zero.</p>
+<p>I did lie in the previous paragraph. Just a bit. The mantissa doesn&rsquo;t always
+represent a fraction in the interval $[1, 2)$, due to the existence of subnormals.
+But they&rsquo;re defined in a way that does not break uniqueness of representation,
+and meshes well with gradual underflow towards zero.</p>
+<p>For subnormal numbers (<code>biased_exp == 0, mantissa != 0</code>), IEEE754 essentially
+degrades into a fixed-point representation. The meaning of the number is
+$0.\mathrm{mantissa} \cdot 2^{E_\mathrm{min}}$. the drop from <code>biased_exp == 1</code>
+to <code>biased_exp == 0</code> does not represent a drop in the numeric value of the
+exponent in the regular way, but rather, we start digging into the mantissa
+and losing precision gradually. Dividing a number with <code>biased_exp == 2</code> by 2
+would leave us with <code>biased_exp == 1</code> and the same mantissa. Dividing a
+number with <code>biased_exp == 1</code> by 2 would leave us with <code>biased_exp == 0</code>, but
+also shift the mantissa right one bit position, essentially shifting the hidden
+bit into the mantissa itself (which means that the hidden bit becomes zero; we
+stole it into the mantissa!).</p>
+<p>So, how does all this apply to us? What do we do to always have a single
+representation for every number? Well, we could just &ldquo;right-justify&rdquo; the <code>BigInt</code>
+to the best degree we can. We divide the mantissa by the largest power of two
+that divides it, and donate it to the exponent. This does depart from the IEEE754
+perspective of putting the normalization anchor &ldquo;to the left&rdquo; of the number,
+in the radix point. We&rsquo;re putting our normalization anchor &ldquo;to the right&rdquo;, by
+saying that we only ever deal with integers in our analogue for the mantissa
+(and only odd integers, at that).</p>
+<div class="highlight"><pre tabindex="0" style="color:#d8dee9;background-color:#2e3440;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Rust" data-lang="Rust"><span style="display:flex;"><span><span style="color:#81a1c1;font-weight:bold">impl</span> ArbFloat <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#81a1c1;font-weight:bold">fn</span> <span style="color:#88c0d0">new</span><span style="color:#eceff4">(</span><span style="color:#81a1c1;font-weight:bold">mut</span> kind: <span style="color:#8fbcbb">FloatKind</span><span style="color:#eceff4">,</span> <span style="color:#81a1c1;font-weight:bold">mut</span> num: <span style="color:#8fbcbb">BigInt</span><span style="color:#eceff4">)</span> -&gt; <span style="color:#8fbcbb">Self</span> <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#81a1c1;font-weight:bold">if</span> <span style="color:#81a1c1;font-weight:bold">let</span> FloatKind::Regular <span style="color:#eceff4">{</span> exp <span style="color:#eceff4">}</span> <span style="color:#81a1c1">=</span> <span style="color:#81a1c1">&amp;</span><span style="color:#81a1c1;font-weight:bold">mut</span> kind <span style="color:#eceff4">{</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#81a1c1;font-weight:bold">let</span> adjustment <span style="color:#81a1c1">=</span> num<span style="color:#eceff4">.</span>trailing_zeros<span style="color:#eceff4">().</span>unwrap<span style="color:#eceff4">()</span> <span style="color:#81a1c1;font-weight:bold">as</span> <span style="color:#81a1c1">i32</span><span style="color:#eceff4">;</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#81a1c1">*</span>exp <span style="color:#81a1c1">+=</span> adjustment<span style="color:#eceff4">;</span>
+</span></span><span style="display:flex;"><span>            num <span style="color:#81a1c1">&gt;&gt;=</span> adjustment<span style="color:#eceff4">;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#eceff4">}</span>
+</span></span><span style="display:flex;"><span>        Self <span style="color:#eceff4">{</span> kind<span style="color:#eceff4">,</span> num <span style="color:#eceff4">}</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#eceff4">}</span>
+</span></span><span style="display:flex;"><span><span style="color:#eceff4">}</span>
 </span></span></code></pre></div><p>Re-running, we now get the following output:</p>
 <div class="highlight"><pre tabindex="0" style="color:#d8dee9;background-color:#2e3440;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-Rust" data-lang="Rust"><span style="display:flex;"><span>ArbFloat <span style="color:#eceff4">{</span> kind: <span style="color:#8fbcbb">Zero</span><span style="color:#eceff4">,</span> num: <span style="color:#81a1c1">-</span><span style="color:#b48ead">1</span> <span style="color:#eceff4">}</span>
 </span></span><span style="display:flex;"><span>ArbFloat <span style="color:#eceff4">{</span> kind: <span style="color:#8fbcbb">Infinity</span><span style="color:#eceff4">,</span> num: <span style="color:#b48ead">1</span> <span style="color:#eceff4">}</span>
