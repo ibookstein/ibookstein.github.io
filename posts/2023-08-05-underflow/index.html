@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        :root {
+            --accent-color: #FF4D4D;
+        }
+    </style>
+
+    
+    
+    
+    
+    
+    
+
+    
+    <title>Underflow: A Subtle, Obscure Corner of IEEE754</title>
+    <meta name="description" content="Itay&#39;s Blog">
+    <meta name="keywords" content='blog, tech, rust, ieee754'>
+
+    <meta property="og:url" content="https://ibookstein.github.io/posts/2023-08-05-underflow/">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Underflow: A Subtle, Obscure Corner of IEEE754">
+    <meta property="og:description" content="Itay&#39;s Blog">
+    <meta property="og:image" content="https://ibookstein.github.io/">
+    <meta property="og:image:secure_url" content="https://ibookstein.github.io/">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Underflow: A Subtle, Obscure Corner of IEEE754">
+    <meta name="twitter:description" content="Itay&#39;s Blog">
+    <meta property="twitter:domain" content="https://ibookstein.github.io/posts/2023-08-05-underflow/">
+    <meta property="twitter:url" content="https://ibookstein.github.io/posts/2023-08-05-underflow/">
+    <meta name="twitter:image" content="https://ibookstein.github.io/">
+
+    
+    <link rel="canonical" href="https://ibookstein.github.io/posts/2023-08-05-underflow/" />
+
+    <link rel="stylesheet" type="text/css" href="https://ibookstein.github.io//css/normalize.min.css" media="print" onload="this.media='all'">
+    <link rel="stylesheet" type="text/css" href="https://ibookstein.github.io//css/main.css">
+    <link disabled id="dark-theme" rel="stylesheet" href="https://ibookstein.github.io//css/dark.css">
+
+    <script src="https://ibookstein.github.io//js/svg-injector.min.js"></script>
+    <script src="https://ibookstein.github.io//js/feather-icons.min.js"></script>
+    <script src="https://ibookstein.github.io//js/main.js"></script>
+
+    
+    
+        <style>
+    /* Disable floating header. */
+
+    #content {
+        margin-top: 0 !important;
+    }
+
+    .header {
+        position: relative !important;
+    }
+
+    .header-shadow {
+        box-shadow: none !important;
+    }
+    </style>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css"
+    integrity="sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71HotJqlAn" crossorigin="anonymous">
+
+    <!-- The loading of KaTeX is deferred to speed up page rendering -->
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"
+        integrity="sha384-cpW21h6RZv/phavutF+AuVYrr+dA8xD9zs6FwLpaCct6O9ctzYFfFr4dgmgccOTx"
+        crossorigin="anonymous"></script>
+
+    <!-- To automatically render math in text elements, include the auto-render extension: -->
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"
+        integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"
+        onload="renderMathInElement(document.body);"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            renderMathInElement(document.body, {
+                delimiters: [
+                    { left: "$$", right: "$$", display: true },
+                    { left: "$", right: "$", display: false }
+                ]
+            });
+        });
+    </script>
+  
+    
+</head>
+<body>
+        <script type="text/javascript">
+            
+            setThemeByUserPref();
+        </script><header class="header">
+    <nav class="header-nav">
+
+        
+
+        <div class="nav-title">
+            <a class="nav-brand" href="https://ibookstein.github.io/">Working Title</a>
+        </div>
+
+        <div class="nav-links">
+            
+            <div class="nav-link">
+                <a href="https://ibookstein.github.io/"><span data-feather='home'></span> Home </a>
+            </div>
+            
+            <div class="nav-link">
+                <a href="https://ibookstein.github.io/posts/"><span data-feather='book'></span> Posts </a>
+            </div>
+            
+            <div class="nav-link">
+                <a href="https://ibookstein.github.io/projects/"><span data-feather='code'></span> Projects </a>
+            </div>
+            
+            <div class="nav-link">
+                <a href="https://ibookstein.github.io/tags/"><span data-feather='tag'></span> Tags </a>
+            </div>
+            
+            <div class="nav-link">
+                <a href="https://github.com/ibookstein"><span data-feather='github'></span>  </a>
+            </div>
+            
+            <div class="nav-link">
+                <a href="https://ibookstein.github.io/index.xml"><span data-feather='rss'></span>  </a>
+            </div>
+            
+
+            <span class="nav-icons-divider"></span>
+            <div class="nav-link dark-theme-toggle">
+                <span id="dark-theme-toggle-screen-reader-target" class="sr-only"></span>
+                <a>
+                    <span id="theme-toggle-icon" data-feather="moon"></span>
+                </a>
+            </div>
+
+            <div class="nav-link" id="hamburger-menu-toggle">
+                <span id="hamburger-menu-toggle-screen-reader-target" class="sr-only">menu</span>
+                <a>
+                    <span data-feather="menu"></span>
+                </a>
+            </div>
+
+            
+            <ul class="nav-hamburger-list visibility-hidden">
+                
+                <li class="nav-item">
+                    <a href="https://ibookstein.github.io/"><span data-feather='home'></span> Home </a>
+                </li>
+                
+                <li class="nav-item">
+                    <a href="https://ibookstein.github.io/posts/"><span data-feather='book'></span> Posts </a>
+                </li>
+                
+                <li class="nav-item">
+                    <a href="https://ibookstein.github.io/projects/"><span data-feather='code'></span> Projects </a>
+                </li>
+                
+                <li class="nav-item">
+                    <a href="https://ibookstein.github.io/tags/"><span data-feather='tag'></span> Tags </a>
+                </li>
+                
+                <li class="nav-item">
+                    <a href="https://github.com/ibookstein"><span data-feather='github'></span>  </a>
+                </li>
+                
+                <li class="nav-item">
+                    <a href="https://ibookstein.github.io/index.xml"><span data-feather='rss'></span>  </a>
+                </li>
+                
+                <li class="nav-item dark-theme-toggle">
+                    <span id="dark-theme-toggle-screen-reader-target" class="sr-only">theme</span>
+                    <a>
+                        <span id="theme-toggle-icon" data-feather="moon"></span>
+                    </a>
+                </li>
+            </ul>
+
+        </div>
+    </nav>
+</header>
+<main id="content">
+    <div class="post container">
+    <div class="post-header-section">
+        <h1>Underflow: A Subtle, Obscure Corner of IEEE754</h1>
+        <small role="doc-subtitle"></small>
+        <p class="post-date">
+            August 5, 2023
+        </p>
+
+        <ul class="post-tags">
+        
+            <li class="post-tag"><a href="https://ibookstein.github.io/tags/rust">rust</a></li>
+        
+            <li class="post-tag"><a href="https://ibookstein.github.io/tags/ieee754">ieee754</a></li>
+        
+        </ul>
+    </div>
+
+    <div class="post-content">
+        <p>
+            <h2 id="ieee754-exceptions-a-whirlwind-tour">IEEE754 Exceptions: A Whirlwind Tour</h2>
+<p>The IEEE754 standard defines 5 exceptions. These help detect exceptional
+conditions that arise during computation. The standard separates between
+the exception, which behaves as an event, and the default handling for
+the exception, which is a prescribed way for handling that event. The default
+handling for an IEEE754 exception is to deliver a default result, set a
+corresponding status flag (except in a few particular cases), and continue
+execution.</p>
+<p>The status flags are made available for inspection by implementations. This
+allows one to perform an arbitrarily long chain of computations, and inspect
+the status flags at the end to reason about whether the computation chain
+reached an exceptional condition at any point in time.</p>
+<p>The 5 exceptions defined are as follows:</p>
+<ul>
+<li>Division by zero. This one&rsquo;s self explanatory. The default result delivered
+will be an appropriately-signed infinity. It is also caused by computing
+the logarithm of zero, yielding negative infinity.</li>
+<li>Inexact. This one means that a computation&rsquo;s result differs from the precise
+mathematical result. A rounded or overflowed result is delivered. Calling
+this one an exception is a bit funny - the vast majority of computations
+will set this, so it&rsquo;s hard to argue that it is exceptional in the English
+sense of the word.</li>
+<li>Invalid operation. This one is for when an operation cannot produce a usefully
+defined result. Dividing zero by zero, subtracting infinity from infinity, you
+name it &ndash; when the result is indeterminate, the invalid operation exception
+is signaled. The default result delivered is NaN. Only an operation producing
+a <em>new</em> NaN or consuming a signaling NaN will generate this exception.
+Merely consuming a quiet NaN will not.</li>
+<li>Overflow. This one is for when the exponent a rounded result should have had
+(if the exponent range was unbounded) exceeds the maximum exponent of the
+destination format. Whether the result is $\pm\mathrm{Inf}$ or
+$\pm\mathrm{LargestFinite}$ is dependent on the rounding mode.</li>
+<li>Underflow. This one is for when we fall down to the subnormals range. It has
+two separate definitions, which we&rsquo;ll discuss below, and the delivered result
+isn&rsquo;t always a subnormal.</li>
+</ul>
+<h2 id="the-underflow-exception">The Underflow Exception</h2>
+<p>Reading the IEEE754 specification&rsquo;s section on underflow (7.5), one immediately
+notices that there are two different, alternative definitions for the meaning
+of the exception:</p>
+<ol>
+<li><em>after rounding</em> — when a non-zero result computed as though the exponent
+range were unbounded  would lie strictly between $\pm b^{emin}$.</li>
+<li><em>before rounding</em> — when a non-zero result computed as though both the
+exponent range and the precision were unbounded would lie strictly between
+$\pm b^{emin}$.</li>
+</ol>
+<p>The implementer is at liberty to choose either for radix two (i.e. binary),
+so long as the choice is uniform for all operations. But only the
+<em>before rounding</em> option is available for decimal formats.</p>
+<p>In addition, the underflow exception is unique in that its default handling
+does not always set the corresponding flag! If the result is <em>exact</em>, then the
+default handling does <em>not</em> set the underflow flag.</p>
+<p>So already we&rsquo;re in strange waters &ndash; why are different implementations allowed
+to choose differently, but only for radix two? Why is the default handling for
+this exception uniquely dependent on another exception &ndash; the Inexact exception?
+The answers to these questions require more context than I can authoritatively
+provide.</p>
+<p>Indeed, both underflow disciplines are extremely ubiquitous &ndash; at a minimum,
+x86 and RISC-V detect tininess <em>after</em> rounding, whilst ARM and IBM POWER
+detect tininess <em>before</em> rounding. A more thorough survey can be found
+<a href="https://www.math.utah.edu/~beebe/ufl/pages-13-21.pdf">here</a>.</p>
+<p>Perhaps the reason for filtering out exact tiny results is that they do not
+constitute the increased loss of precision that underflow captures when you
+define it that way.</p>
+<p>We&rsquo;ll start picking apart the meanings of these two definitions, and how one
+might go about implementing them.</p>
+<h2 id="underflow-before-rounding">Underflow Before Rounding</h2>
+<p>The easier of the two to both understand and implement is underflow <em>before</em>
+rounding. Its meaning is basically that the ideal mathematical result of the
+computation (i.e. a result supposing an arbitrary exponent range <em>and</em> arbitrary
+precision) lies in the range of subnormal numbers.</p>
+<p>To understand how one would capture this state of affairs in a hardware
+implementation of a floating-point execution unit, we&rsquo;ll describe a simplified
+single-precision floating-point multiplier, with pseudocode.</p>
+<div class="highlight"><pre tabindex="0" style="color:#d8dee9;background-color:#2e3440;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-Rust" data-lang="Rust"><span style="color:#81a1c1">u32</span> mul<span style="color:#eceff4">(</span><span style="color:#81a1c1">u32</span> x<span style="color:#eceff4">,</span> <span style="color:#81a1c1">u32</span> y<span style="color:#eceff4">)</span> <span style="color:#eceff4">{</span>
+  <span style="color:#81a1c1;font-weight:bold">let</span> xp <span style="color:#81a1c1">=</span> parse<span style="color:#eceff4">(</span>x<span style="color:#eceff4">);</span>
+  <span style="color:#81a1c1;font-weight:bold">let</span> yp <span style="color:#81a1c1">=</span> parse<span style="color:#eceff4">(</span>y<span style="color:#eceff4">);</span>
+
+  <span style="color:#616e87;font-style:italic">// Handle Zeros, Infinities, and NaNs.
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#81a1c1;font-weight:bold">if</span> <span style="color:#81a1c1;font-weight:bold">let</span> <span style="color:#eceff4">(</span><span style="color:#81a1c1">Ok</span><span style="color:#eceff4">(</span>r<span style="color:#eceff4">)</span> <span style="color:#81a1c1">=</span> handle_singulars<span style="color:#eceff4">(</span>xp<span style="color:#eceff4">,</span> yp<span style="color:#eceff4">))</span> <span style="color:#eceff4">{</span>
+    <span style="color:#81a1c1;font-weight:bold">return</span> r<span style="color:#eceff4">;</span>
+  <span style="color:#eceff4">}</span>
+
+  <span style="color:#616e87;font-style:italic">// Mantissas contain the no-longer-hidden integer bit.
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#616e87;font-style:italic">// Exponents are signed, still biased, and zero-extended to two extra bits.
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#616e87;font-style:italic">// For subnormals, the exponents are bumped to 1 to match the mantissas&#39;
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#616e87;font-style:italic">// bit significance, but we don&#39;t normalize. Therefore:
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#616e87;font-style:italic">// 1. These mantissas can contain leading zeros.
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#616e87;font-style:italic">// 2. These exponents don&#39;t always represent the number&#39;s true magnitude.
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#81a1c1;font-weight:bold">let</span> <span style="color:#eceff4">(</span>x_sign<span style="color:#eceff4">,</span> x_exp<span style="color:#eceff4">,</span> x_mant<span style="color:#eceff4">)</span>: <span style="color:#eceff4">(</span>u1<span style="color:#eceff4">,</span> s10<span style="color:#eceff4">,</span> u24<span style="color:#eceff4">)</span> <span style="color:#81a1c1">=</span> xp<span style="color:#eceff4">.</span>as_regular<span style="color:#eceff4">();</span>
+  <span style="color:#81a1c1;font-weight:bold">let</span> <span style="color:#eceff4">(</span>y_sign<span style="color:#eceff4">,</span> y_exp<span style="color:#eceff4">,</span> y_mant<span style="color:#eceff4">)</span>: <span style="color:#eceff4">(</span>u1<span style="color:#eceff4">,</span> s10<span style="color:#eceff4">,</span> u24<span style="color:#eceff4">)</span> <span style="color:#81a1c1">=</span> yp<span style="color:#eceff4">.</span>as_regular<span style="color:#eceff4">();</span>
+
+  <span style="color:#81a1c1;font-weight:bold">let</span> prod_sign <span style="color:#81a1c1">=</span> x_sign <span style="color:#81a1c1">^</span> y_sign<span style="color:#eceff4">;</span>
+
+  <span style="color:#616e87;font-style:italic">// `x_mant` and `y_mant` represent numbers in (0, 2), with the most
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#616e87;font-style:italic">// significant bit being the integer bit: i.xxx...xxx, j.yyy...yyy.
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#616e87;font-style:italic">// The range isn&#39;t [1, 2) because we didn&#39;t normalize subnormals on entry.
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#616e87;font-style:italic">// Zero is excluded because we handled it specially as a singular number.
+</span><span style="color:#616e87;font-style:italic"></span>
+  <span style="color:#616e87;font-style:italic">// The product&#39;s radix point has two digits to its left:  ab.zzz...zzz.
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#616e87;font-style:italic">// So we add 1 to the exponent to move the radix point to a.bzzz...zzz.
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#616e87;font-style:italic">// We also subtract the bias so that the result is not double-biased.
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#616e87;font-style:italic">// The range is: [1, 254] + [1, 254] + [-126, -126] = [-124, 382].
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#81a1c1;font-weight:bold">let</span> prod_initial_exp: <span style="color:#8fbcbb">s10</span> <span style="color:#81a1c1">=</span> x_exp <span style="color:#81a1c1">+</span> y_exp <span style="color:#81a1c1">+</span> <span style="color:#b48ead">1</span> <span style="color:#81a1c1">-</span> <span style="color:#b48ead">127</span><span style="color:#eceff4">;</span>
+
+  <span style="color:#616e87;font-style:italic">// Use an integer multiplier to get an initial mantissa for the product.
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#616e87;font-style:italic">// Because we compensated `prod_initial_exp` with an extra 1, it will still
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#616e87;font-style:italic">// represent a number in (0, 2), but with twice as many bits.
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#81a1c1;font-weight:bold">let</span> prod_initial_mant: <span style="color:#8fbcbb">u48</span> <span style="color:#81a1c1">=</span> unsigned_integer_mul<span style="color:#eceff4">(</span>x_mant<span style="color:#eceff4">,</span> y_mant<span style="color:#eceff4">);</span>
+
+  <span style="color:#616e87;font-style:italic">// Compute how much we need to shift left to normalize the product.
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#81a1c1;font-weight:bold">let</span> wanted_normalization <span style="color:#81a1c1">=</span> prod_initial_mant<span style="color:#eceff4">.</span>leading_zeros<span style="color:#eceff4">()</span> <span style="color:#81a1c1;font-weight:bold">as</span> s10<span style="color:#eceff4">;</span>
+
+  <span style="color:#616e87;font-style:italic">// We would like to subtract `wanted_normalization` from `prod_initial_exp`,
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#616e87;font-style:italic">// but it could leave us underwater - we need the result of this subtraction
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#616e87;font-style:italic">// to saturate to 1 (subnormals). We could actually already be underwater
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#616e87;font-style:italic">// even before this subtraction, when `prod_initial_exp` is in [-124, 0].
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#81a1c1;font-weight:bold">let</span> <span style="color:#eceff4">(</span>mant_to_normalize<span style="color:#eceff4">,</span> actual_normalization<span style="color:#eceff4">,</span> low_tail<span style="color:#eceff4">)</span> <span style="color:#81a1c1">=</span> <span style="color:#81a1c1;font-weight:bold">if</span> prod_initial_exp <span style="color:#81a1c1">&lt;</span> <span style="color:#b48ead">1</span> <span style="color:#eceff4">{</span>
+    <span style="color:#eceff4">(</span><span style="color:#b48ead">0</span>u48<span style="color:#eceff4">,</span> <span style="color:#b48ead">0</span>s10<span style="color:#eceff4">,</span> <span style="color:#b48ead">1</span>u1<span style="color:#eceff4">)</span>
+  <span style="color:#eceff4">}</span> <span style="color:#81a1c1;font-weight:bold">else</span> <span style="color:#eceff4">{</span>
+    <span style="color:#eceff4">(</span>prod_initial_mant<span style="color:#eceff4">,</span> min<span style="color:#eceff4">(</span>wanted_normalization<span style="color:#eceff4">,</span> prod_initial_exp <span style="color:#81a1c1">-</span> <span style="color:#b48ead">1</span><span style="color:#eceff4">),</span> <span style="color:#b48ead">0</span>u1<span style="color:#eceff4">)</span>
+  <span style="color:#eceff4">};</span>
+  <span style="color:#81a1c1;font-weight:bold">let</span> <span style="color:#81a1c1">=</span> min<span style="color:#eceff4">(</span><span style="color:#b48ead">0</span><span style="color:#eceff4">,</span> prod_initial_exp <span style="color:#81a1c1">-</span> <span style="color:#b48ead">1</span><span style="color:#eceff4">,</span> wanted_normalization<span style="color:#eceff4">);</span>
+
+  <span style="color:#616e87;font-style:italic">// We computed `prod_initial_exp` such that it is the significance of the MSB
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#616e87;font-style:italic">// of `prod_initial_mant`.
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#81a1c1;font-weight:bold">let</span> <span style="color:#eceff4">(</span>normalized_mant<span style="color:#eceff4">,</span> low_tail<span style="color:#eceff4">)</span>: <span style="color:#eceff4">(</span>u48<span style="color:#eceff4">,</span> u1<span style="color:#eceff4">)</span> <span style="color:#81a1c1">=</span>
+      <span style="color:#81a1c1;font-weight:bold">if</span> prod_initial_exp <span style="color:#81a1c1">&lt;</span> <span style="color:#81a1c1">-</span><span style="color:#b48ead">126</span> <span style="color:#81a1c1">-</span> <span style="color:#b48ead">48</span> <span style="color:#eceff4">{</span>
+        <span style="color:#eceff4">(</span><span style="color:#b48ead">0</span>u48<span style="color:#eceff4">,</span> <span style="color:#b48ead">1</span>u1<span style="color:#eceff4">)</span>
+      <span style="color:#eceff4">}</span> <span style="color:#81a1c1;font-weight:bold">else</span> <span style="color:#eceff4">{</span>
+        <span style="color:#eceff4">()</span>
+      <span style="color:#eceff4">};</span>
+
+  <span style="color:#81a1c1;font-weight:bold">let</span> true_exponent <span style="color:#81a1c1">=</span> prod_initial_exp <span style="color:#81a1c1">-</span> wanted_normalization<span style="color:#eceff4">;</span>
+  <span style="color:#81a1c1;font-weight:bold">if</span> true_exponent <span style="color:#81a1c1">&lt;</span> <span style="color:#81a1c1">-</span><span style="color:#b48ead">126</span> <span style="color:#81a1c1">-</span> <span style="color:#b48ead">23</span> <span style="color:#eceff4">{</span>
+    <span style="color:#eceff4">(</span><span style="color:#b48ead">0</span>u24<span style="color:#eceff4">,</span> <span style="color:#eceff4">)</span>
+  <span style="color:#eceff4">}</span>
+  <span style="color:#616e87;font-style:italic">// We must not underflow the exponent, so saturate.
+</span><span style="color:#616e87;font-style:italic"></span>  <span style="color:#81a1c1;font-weight:bold">let</span> actual_normalization <span style="color:#81a1c1">=</span> min<span style="color:#eceff4">(</span>wanted_normalization<span style="color:#eceff4">,</span> prod_initial_exp<span style="color:#eceff4">);</span>
+
+<span style="color:#eceff4">}</span>
+</code></pre></div><p>This situation will present itself in a hardware floating-point implementation
+when:</p>
+<p>But <a href="https://stackoverflow.com/a/76424791">this stackoverflow post&rsquo;s</a>
+quotes from the stds-754 list do match my experience well.</p>
+<blockquote>
+<p>the definition of tininess after rounding depends on a hypothetical rounding
+to a hypothetical intermediate format that has confused everybody who has ever
+tried to implement underflow.</p>
+</blockquote>
+<p>The advantages of detecting tininess <em>after rounding</em> are that it is symmetric
+with the definition of overflow, and that it avoids some &lsquo;spurious&rsquo; underflows
+(situations where underflow occurs but you haven&rsquo;t really lost effective precision).</p>
+<ul>
+<li><em>after rounding</em></li>
+<li>Detecting tininess <em>before rounding</em> is simpler to implement, is vastly easier
+to understand, and is not dependent on
+.</li>
+</ul>
+
+        </p>
+        
+    </div>
+
+    <div class="prev-next">
+        
+    </div>
+</div>
+
+<aside class="post-toc">
+    <nav id="toc">
+        <nav id="TableOfContents">
+  <ul>
+    <li>
+      <ul>
+        <li><a href="#ieee754-exceptions-a-whirlwind-tour">IEEE754 Exceptions: A Whirlwind Tour</a></li>
+        <li><a href="#the-underflow-exception">The Underflow Exception</a></li>
+        <li><a href="#underflow-before-rounding">Underflow Before Rounding</a></li>
+      </ul>
+    </li>
+  </ul>
+</nav>
+    </nav>
+</aside>
+
+
+
+    
+
+        </main><footer class="footer">
+    <span>&copy; 2024 </span>
+    <span>
+        Made with &#10084;&#65039; using <a target="_blank" href="https://github.com/526avijitgupta/gokarna">Gokarna</a>
+    </span>
+</footer></body>
+</html>

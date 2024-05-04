@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        :root {
+            --accent-color: #FF4D4D;
+        }
+    </style>
+
+    
+    
+    
+    
+    
+    
+
+    
+    <title>Home Network Without ISP Equipment</title>
+    <meta name="description" content="Itay&#39;s blog">
+    <meta name="keywords" content='blog, tech, rust, net'>
+
+    <meta property="og:url" content="https://ibookstein.github.io/posts/2024-04-05-home-network/">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Home Network Without ISP Equipment">
+    <meta property="og:description" content="Itay&#39;s blog">
+    <meta property="og:image" content="https://ibookstein.github.io/">
+    <meta property="og:image:secure_url" content="https://ibookstein.github.io/">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Home Network Without ISP Equipment">
+    <meta name="twitter:description" content="Itay&#39;s blog">
+    <meta property="twitter:domain" content="https://ibookstein.github.io/posts/2024-04-05-home-network/">
+    <meta property="twitter:url" content="https://ibookstein.github.io/posts/2024-04-05-home-network/">
+    <meta name="twitter:image" content="https://ibookstein.github.io/">
+
+    
+    <link rel="canonical" href="https://ibookstein.github.io/posts/2024-04-05-home-network/">
+
+    
+    <link rel="stylesheet" type="text/css" href="/css/normalize.min.css" media="print">
+
+    
+    <link rel="stylesheet" type="text/css" href="/css/main.min.css">
+
+    
+    <link id="dark-theme" rel="stylesheet" href="/css/dark.min.css">
+
+    
+    <script src="/js/bundle.min.676096fc3ebd5fc54d9f5116926446daff1ba3fec34dc5f56eaa5a9ef988b621.js" integrity="sha256-Z2CW/D69X8VNn1EWkmRG2v8bo/7DTcX1bqpanvmItiE="></script>
+
+    
+    
+        <style>
+    /* Disable floating header. */
+
+    #content {
+        margin-top: 0 !important;
+    }
+
+    .header {
+        position: relative !important;
+    }
+
+    .header-shadow {
+        box-shadow: none !important;
+    }
+    </style>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css"
+    integrity="sha384-GvrOXuhMATgEsSwCs4smul74iXGOixntILdUW9XmUC6+HX0sLNAK3q71HotJqlAn" crossorigin="anonymous">
+
+    <!-- The loading of KaTeX is deferred to speed up page rendering -->
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"
+        integrity="sha384-cpW21h6RZv/phavutF+AuVYrr+dA8xD9zs6FwLpaCct6O9ctzYFfFr4dgmgccOTx"
+        crossorigin="anonymous"></script>
+
+    <!-- To automatically render math in text elements, include the auto-render extension: -->
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"
+        integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"
+        onload="renderMathInElement(document.body);"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            renderMathInElement(document.body, {
+                delimiters: [
+                    { left: "$$", right: "$$", display: true },
+                    { left: "$", right: "$", display: false }
+                ]
+            });
+        });
+    </script>
+  
+    
+</head>
+<body>
+        <script>
+            
+            setThemeByUserPref();
+        </script><header class="header">
+    <nav class="header-nav">
+
+        
+
+        <div class="nav-title">
+            <a class="nav-brand" href="https://ibookstein.github.io/">Layer of Indirection</a>
+        </div>
+
+        <div class="nav-links">
+            
+            <div class="nav-link">
+                <a href="https://ibookstein.github.io/"><span data-feather='home'></span> Home </a>
+            </div>
+            
+            <div class="nav-link">
+                <a href="https://ibookstein.github.io/posts/"><span data-feather='book'></span> Posts </a>
+            </div>
+            
+            <div class="nav-link">
+                <a href="https://ibookstein.github.io/projects/"><span data-feather='code'></span> Projects </a>
+            </div>
+            
+            <div class="nav-link">
+                <a href="https://ibookstein.github.io/tags/"><span data-feather='tag'></span> Tags </a>
+            </div>
+            
+            <div class="nav-link">
+                <a href="https://github.com/ibookstein"><span data-feather='github'></span>  </a>
+            </div>
+            
+            <div class="nav-link">
+                <a href="https://ibookstein.github.io/index.xml"><span data-feather='rss'></span>  </a>
+            </div>
+            
+
+            <span class="nav-icons-divider"></span>
+            <div class="nav-link dark-theme-toggle">
+                <span class="sr-only dark-theme-toggle-screen-reader-target"></span>
+                <a>
+                    <span class="theme-toggle-icon" data-feather="moon"></span>
+                </a>
+            </div>
+
+            <div class="nav-link" id="hamburger-menu-toggle">
+                <span class="sr-only hamburger-menu-toggle-screen-reader-target">menu</span>
+                <a>
+                    <span data-feather="menu"></span>
+                </a>
+            </div>
+
+            
+            <ul class="nav-hamburger-list visibility-hidden">
+                
+                <li class="nav-item">
+                    <a href="https://ibookstein.github.io/"><span data-feather='home'></span> Home </a>
+                </li>
+                
+                <li class="nav-item">
+                    <a href="https://ibookstein.github.io/posts/"><span data-feather='book'></span> Posts </a>
+                </li>
+                
+                <li class="nav-item">
+                    <a href="https://ibookstein.github.io/projects/"><span data-feather='code'></span> Projects </a>
+                </li>
+                
+                <li class="nav-item">
+                    <a href="https://ibookstein.github.io/tags/"><span data-feather='tag'></span> Tags </a>
+                </li>
+                
+                <li class="nav-item">
+                    <a href="https://github.com/ibookstein"><span data-feather='github'></span>  </a>
+                </li>
+                
+                <li class="nav-item">
+                    <a href="https://ibookstein.github.io/index.xml"><span data-feather='rss'></span>  </a>
+                </li>
+                
+                <li class="nav-item dark-theme-toggle">
+                    <span class="sr-only dark-theme-toggle-screen-reader-target">theme</span>
+                    <a>
+                        <span class="theme-toggle-icon" data-feather="moon"></span>
+                    </a>
+                </li>
+            </ul>
+
+        </div>
+    </nav>
+</header>
+<main id="content">
+    <div class="post container">
+    <div class="post-header-section">
+        <h1>Home Network Without ISP Equipment</h1>
+        <small role="doc-subtitle"></small>
+        <p class="post-date">April 5, 2024
+        
+        </p>
+
+        <ul class="post-tags">
+        
+            <li class="post-tag"><a href="https://ibookstein.github.io/tags/net">net</a></li>
+        
+        </ul>
+    </div>
+
+    <div class="post-content">
+        <p>I&rsquo;ve been mildly dissatisfied with my ISP and my home network setup for quite
+a while now, but it so far hasn&rsquo;t pushed past my threshold to merit addressing.
+But the situation isn&rsquo;t static. Alternatives have improved, the quality of
+service has degraded, the cost has increased, and I was planning on overhauling
+the situation for a coming move anyway.</p>
+<p>My current setup is what you would call the ISP&rsquo;s Default Offering. You get
+an All-in-One box that does Access, Switching, Routing, and Wireless. I do like
+the simplicity of it, so long as it ticks all the boxes. And my boxes are as
+follows:</p>
+<ul>
+<li>All desktops are to be connected via Ethernet cable, for bandwidth purposes.</li>
+<li>Whatever method is used for the living room, it must suffice for HD streaming.</li>
+<li>No rented equipment. Loaned is fine.</li>
+</ul>
+<p>At first, the ISP did not charge for the ISP-provided box. Over time, their
+policy changed and they started charging a small monthly amount for the box.
+This wouldn&rsquo;t bother me so much so long as I had the option to buy my own
+equipment and replace the ISP-provided one. But the Telecom regulator where I
+live is, if we&rsquo;re being charitable, weak and ineffectual on these matters.
+And so, my options for ditching the ISP&rsquo;s equipment and using my own are up to
+the ISP.</p>
+<p>The market here (and the bill) is split into Infrastructure Providers and
+Internet Service Providers. The former build out the actual physical
+infrastructure, last-mile deployments and the like. The latter manage your,
+well, Internet Service, supporting connections via one or more Infrastructure
+Providers. I think of them sort of like MVNOs.</p>
+<p>The access technologies supported by the infrastructure providers determine
+the sort of equipment you&rsquo;d need to own be able to connect. Because the
+regulation here is weak, there&rsquo;s no standardization of what the providers <em>must</em>
+let you do with your own equipment. So some infrastructure providers let you
+connect from a set of supported aftermarket products if you wish, but others
+don&rsquo;t support that at all.</p>
+<p>As Fiber-to-the-Home technologies have been steadily eating into the marketshare
+of the older <a href="https://en.wikipedia.org/wiki/VDSL">VDSL</a> and
+<a href="https://en.wikipedia.org/wiki/DOCSIS">DOCSIS</a> based offerings, I went to
+investigate what options I might have as a consumer wanting to transition to
+connection via Fiber using privately-owned equipment. Up to some outliers or
+legacy installations, I understood that the market&rsquo;s offerings are
+overwhelmingly based on <a href="https://en.wikipedia.org/wiki/Passive_optical_network">PON</a>.</p>
+<p>One of the infrastructure providers here publishes a list of products it
+supports. Instructively, the list contains an &ldquo;Equipment Type&rdquo; column, which
+subdivides the offerings into three categories: &ldquo;SFP ONT&rdquo;, &ldquo;BRIDGE ONT&rdquo;, and
+&ldquo;CPE GW ONT&rdquo;.</p>
+<p>So far, my interactions with network equipment never forced me to understand
+what <a href="https://en.wikipedia.org/wiki/Small_Form-factor_Pluggable">SFP</a> is.
+Now was the time. At first, I thought this was just &ldquo;ports for fiber cables&rdquo;,
+directly analogous to RJ45 Ethernet connectors. Not so. Apparently, SFP ports
+are meant for you to stick a transceiver for doing the low-level communication
+in the technology of your choice, be it Ethernet or Fiber. Lobste.rs user <code>fanf</code>
+refers us to <a href="https://en.m.wikipedia.org/wiki/Medium_Attachment_Unit">MAUs</a>,
+considering SFP to be a modern iteration of that.</p>
+<p>So, PON fits into this story as a possible technology for you to stick a
+corresponding transceiver into an SFP cage. Now we can understand the three
+categories above: &ldquo;SFP ONT&rdquo; means just a PON transceiver, a &ldquo;modem on a stick&rdquo;.
+Stick a supported one into an SFP port and you&rsquo;re set. &ldquo;BRIDGE ONT&rdquo; products are
+media converter boxes, functioning as network bridges between a port that has a
+hard-wired PON transceiver, and (usually) an RJ45 Ethernet port.
+Lastly, &ldquo;CPE GW ONT&rdquo; products are All-in-One boxes, which function as routers
+and have a hard-wired PON port for WAN.</p>
+<p>On to requirements. I want the equipment I purchase to last a long time. The
+setting is residential, without a fancy home lab &ndash; just consumer electronics.
+As far as access technology is concerned, it seems to me that any small
+home/office router with an SFP+ port (10Gbit/s) will suffice. It would be an
+advantage for the other ports to be Ethernet, as that&rsquo;s what I will end up
+connecting consumer electronics to, and spending extra on SFP Ethernet
+transceivers seems wasteful. I would also like the cooling to be passive to
+reduce noise and have less moving parts.</p>
+<p>For the SFP+ port I will likely need to get a transceiver supported by the
+Infrastructure Provider. All the supported ones right now are 1-2.4Gbit GPON,
+but there are indications that there will be deployments of XGS-PON (10Gbit)
+coming soon, so I wonder when they will publish which XGS-PON transceivers
+they support so I could skip buying a GPON transceiver. There&rsquo;s an entire
+website devoted to these little devices, which may come in handy for making
+a selection: <a href="https://hack-gpon.org/">Hack GPON</a>.</p>
+<p>So far, for the Integrated-WiFi alternative, the
+<a href="https://mikrotik.com/product/rb4011igs_5hacq2hnd_in">MikroTik RB4011iGS Router</a>
+caught my eye. For the WiFi-via-APs alternative, the
+<a href="https://mikrotik.com/product/rb5009upr_s_in">MikroTik RB5009UPr Router</a>
+caught my eye. Both have one SFP+ port, passive cooling, and a generous
+amount of Ethernet ports. For the latter, there&rsquo;s one 2.5G Ethernet port, and
+the Ethernet ports support PoE-out, which is nice for the APs.</p>
+<p>For wireless connections, if the router doesn&rsquo;t directly support WiFi, it might
+be nice to connect access points via PoE, simplifying cabling. So in that case
+the router would need to support PoE-out while the access point would need to
+support PoE-in. I will also prefer picking access points supporting newer WiFi
+standards over older ones. I&rsquo;m yet to settle on anything in particular, but
+it looks like MicroTik has many compact and unobtrusive offerings.</p>
+
+        
+    </div>
+
+    <div class="prev-next">
+        
+    </div>
+
+    
+    
+    
+</div>
+
+<aside class="post-toc">
+    <nav id="toc">
+        <nav id="TableOfContents"></nav>
+    </nav>
+</aside>
+
+
+
+    
+
+        </main><footer class="footer">
+    <span>&copy; 2024 </span>
+    <span>
+        Made with &#10084;&#65039; using <a target="_blank" href="https://github.com/526avijitgupta/gokarna">Gokarna</a>
+    </span>
+</footer></body>
+</html>
